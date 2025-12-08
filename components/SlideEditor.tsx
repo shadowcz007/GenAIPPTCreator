@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SlideData, SlideLayout } from '../types';
 
 interface SlideEditorProps {
@@ -17,6 +17,9 @@ interface SlideEditorProps {
     promptPlaceholder?: string;
     tip?: string;
     genButton?: string;
+    zoomIn?: string;
+    zoomOut?: string;
+    zoomReset?: string;
   };
 }
 
@@ -27,6 +30,48 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   isGeneratingImage,
   texts
 }) => {
+  const [zoom, setZoom] = useState(1);
+  const [autoFit, setAutoFit] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Fixed Slide Dimensions (16:9 Aspect Ratio)
+  const BASE_WIDTH = 1024;
+  const BASE_HEIGHT = 576;
+  const PADDING = 64; // Padding around the slide when fitting
+
+  // Auto-fit logic using ResizeObserver
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const calculateFit = () => {
+      if (!autoFit) return;
+      
+      const { clientWidth, clientHeight } = container;
+      if (clientWidth === 0 || clientHeight === 0) return;
+
+      const availableWidth = Math.max(0, clientWidth - PADDING);
+      const availableHeight = Math.max(0, clientHeight - PADDING);
+
+      const scaleX = availableWidth / BASE_WIDTH;
+      const scaleY = availableHeight / BASE_HEIGHT;
+      
+      // Use the smaller scale to fit entirely, clamp to sensible min/max for auto
+      const newZoom = Math.min(scaleX, scaleY);
+      setZoom(Math.max(newZoom, 0.2)); 
+    };
+
+    const observer = new ResizeObserver(() => {
+        // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded"
+        requestAnimationFrame(calculateFit);
+    });
+    
+    observer.observe(container);
+    // Initial calc
+    calculateFit();
+
+    return () => observer.disconnect();
+  }, [autoFit]);
   
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdate({ ...slide, title: e.target.value });
@@ -44,6 +89,21 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
   const setLayout = (layout: SlideLayout) => {
     onUpdate({ ...slide, layout });
+  };
+
+  // --- Zoom Controls ---
+  const handleZoomIn = () => {
+    setAutoFit(false);
+    setZoom(prev => Math.min(prev + 0.1, 2.0));
+  };
+  
+  const handleZoomOut = () => {
+    setAutoFit(false);
+    setZoom(prev => Math.max(prev - 0.1, 0.2));
+  };
+
+  const handleFitScreen = () => {
+    setAutoFit(true);
   };
 
   // --- Layout Components ---
@@ -88,6 +148,32 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     </div>
   );
 
+  const ZoomControls = () => (
+    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 ml-2">
+      <button 
+        onClick={handleZoomOut}
+        className="p-1.5 rounded hover:bg-white hover:shadow-sm transition-all text-slate-500 hover:text-indigo-600"
+        title={texts.zoomOut || "Zoom Out"}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+      </button>
+      <button 
+        onClick={handleFitScreen}
+        className={`px-2 py-0.5 min-w-[3rem] text-xs font-medium rounded hover:bg-white hover:shadow-sm transition-all text-center ${autoFit ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600'}`}
+        title={texts.zoomReset || "Fit to Screen"}
+      >
+        {autoFit ? 'Fit' : `${Math.round(zoom * 100)}%`}
+      </button>
+      <button 
+        onClick={handleZoomIn}
+        className="p-1.5 rounded hover:bg-white hover:shadow-sm transition-all text-slate-500 hover:text-indigo-600"
+        title={texts.zoomIn || "Zoom In"}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+      </button>
+    </div>
+  );
+
   const ImagePlaceholder = ({ dark = false }: { dark?: boolean }) => (
     <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 text-center ${dark ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
       <div className={`w-16 h-16 mb-4 rounded-full flex items-center justify-center ${dark ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'}`}>
@@ -104,17 +190,18 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Toolbar / Actions */}
       <div className="h-14 border-b border-slate-200 flex items-center justify-between px-6 bg-white/50 backdrop-blur-sm z-20 shrink-0">
-        <div className="flex items-center gap-4">
-          <h2 className="text-slate-500 text-sm font-medium hidden sm:block">{texts.header}</h2>
-          <div className="h-4 w-px bg-slate-300 hidden sm:block"></div>
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <h2 className="text-slate-500 text-sm font-medium hidden lg:block mr-2">{texts.header}</h2>
+          <div className="h-4 w-px bg-slate-300 hidden lg:block mr-2"></div>
           <LayoutControls />
+          <ZoomControls />
         </div>
         
         <button
           onClick={onGenerateImage}
           disabled={isGeneratingImage}
           className={`
-            px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all shadow-sm
+            px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all shadow-sm ml-4 shrink-0
             ${isGeneratingImage 
               ? 'bg-slate-200 text-slate-500 cursor-not-allowed' 
               : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/20'}
@@ -140,173 +227,198 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       </div>
 
       {/* Slide Canvas Wrapper */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/80 flex flex-col items-center">
-        
-        {/* The Slide Container */}
-        <div className="relative w-full max-w-5xl aspect-video bg-white text-slate-900 shadow-2xl rounded-sm overflow-hidden ring-1 ring-slate-900/5 transition-all shrink-0">
+      {/* 
+         Structure:
+         1. Scroll Container (ref=containerRef): Handles overflow scrolling and flex centering for smaller items.
+         2. Sizing Wrapper: Explicitly sized to (BASE * zoom) to force the scroll container to recognize the size.
+         3. Slide Content: Absolute positioned, scaled, top-left origin. Matches sizing wrapper visually.
+      */}
+      <div 
+        ref={containerRef} 
+        className="flex-1 bg-slate-100/80 relative overflow-auto flex p-8"
+      >
+        <div 
+          style={{ 
+             width: `${BASE_WIDTH * zoom}px`, 
+             height: `${BASE_HEIGHT * zoom}px`,
+             flexShrink: 0,
+             margin: 'auto', // Centers the wrapper if it's smaller than container
+             position: 'relative'
+          }}
+          className="transition-all duration-200 ease-out"
+        >
+          {/* The Slide Container */}
+          <div 
+            className="absolute top-0 left-0 bg-white text-slate-900 shadow-2xl rounded-sm overflow-hidden ring-1 ring-slate-900/5 origin-top-left"
+            style={{ 
+              width: BASE_WIDTH,
+              height: BASE_HEIGHT,
+              transform: `scale(${zoom})`,
+              // No transition on transform here if we want instant responsiveness, 
+              // but keeping it matches the wrapper's transition for smoothness.
+            }}
+          >
           
-          {/* --- LAYOUT: TITLE --- */}
-          {slide.layout === 'TITLE' && (
-             <div className="w-full h-full relative flex flex-col items-center justify-center p-16 text-center z-10">
-                {/* Background Image (Optional for Title) */}
-                <div className="absolute inset-0 z-0">
-                  {slide.imageUrl ? (
-                    <>
-                      <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm"></div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-50 via-white to-blue-50">
-                       <div className="absolute inset-0 flex items-center justify-center opacity-5">
-                          <svg className="w-64 h-64" viewBox="0 0 200 200" fill="currentColor"><path d="M100 0L200 100L100 200L0 100Z" /></svg>
-                       </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="z-10 w-full max-w-3xl">
-                  <input
-                    className="text-5xl md:text-7xl font-black text-slate-900 bg-transparent border-none text-center focus:ring-0 placeholder-slate-300 w-full outline-none mb-6 leading-tight"
-                    value={slide.title}
-                    onChange={handleTitleChange}
-                    placeholder="Presentation Title"
-                  />
-                  <div className="w-24 h-2 bg-indigo-600 mx-auto mb-8 rounded-full"></div>
-                  
-                  <div className="space-y-2">
-                    {slide.content.map((point, idx) => (
-                      <input
-                        key={idx}
-                        className="text-xl md:text-2xl text-slate-600 text-center bg-transparent border-none focus:ring-0 w-full outline-none"
-                        value={point}
-                        onChange={(e) => handleContentChange(idx, e.target.value)}
-                        placeholder="Subtitle or Author"
-                      />
-                    ))}
+            {/* --- LAYOUT: TITLE --- */}
+            {slide.layout === 'TITLE' && (
+              <div className="w-full h-full relative flex flex-col items-center justify-center p-16 text-center z-10">
+                  {/* Background Image (Optional for Title) */}
+                  <div className="absolute inset-0 z-0">
+                    {slide.imageUrl ? (
+                      <>
+                        <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm"></div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-5">
+                            <svg className="w-64 h-64" viewBox="0 0 200 200" fill="currentColor"><path d="M100 0L200 100L100 200L0 100Z" /></svg>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-             </div>
-          )}
 
-          {/* --- LAYOUT: CONTENT RIGHT (Standard) --- */}
-          {slide.layout === 'CONTENT_RIGHT' && (
-            <div className="flex flex-col md:flex-row h-full">
-              <div className="w-full md:w-1/2 p-12 flex flex-col justify-center bg-white z-10">
-                <input
-                  className="text-4xl md:text-5xl font-bold text-slate-900 bg-transparent border-none focus:ring-0 placeholder-slate-300 mb-8 w-full outline-none"
-                  value={slide.title}
-                  onChange={handleTitleChange}
-                  placeholder={texts.titlePlaceholder}
-                />
-                <ul className="space-y-4">
-                  {slide.content.map((point, idx) => (
-                    <li key={idx} className="flex items-start">
-                      <span className="mr-3 text-indigo-600 text-2xl leading-none">•</span>
-                      <input
-                        className="flex-1 text-lg md:text-xl text-slate-700 bg-transparent border-b border-transparent focus:border-indigo-200 focus:ring-0 w-full outline-none pb-1"
-                        value={point}
-                        onChange={(e) => handleContentChange(idx, e.target.value)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                  <div className="z-10 w-full max-w-3xl">
+                    <input
+                      className="text-7xl font-black text-slate-900 bg-transparent border-none text-center focus:ring-0 placeholder-slate-300 w-full outline-none mb-6 leading-tight"
+                      value={slide.title}
+                      onChange={handleTitleChange}
+                      placeholder="Presentation Title"
+                    />
+                    <div className="w-24 h-2 bg-indigo-600 mx-auto mb-8 rounded-full"></div>
+                    
+                    <div className="space-y-2">
+                      {slide.content.map((point, idx) => (
+                        <input
+                          key={idx}
+                          className="text-2xl text-slate-600 text-center bg-transparent border-none focus:ring-0 w-full outline-none"
+                          value={point}
+                          onChange={(e) => handleContentChange(idx, e.target.value)}
+                          placeholder="Subtitle or Author"
+                        />
+                      ))}
+                    </div>
+                  </div>
               </div>
-              <div className="w-full md:w-1/2 h-full bg-indigo-50 relative overflow-hidden">
-                {slide.imageUrl ? (
-                  <img src={slide.imageUrl} alt="Visual" className="w-full h-full object-cover animate-fade-in" />
-                ) : (
-                  <ImagePlaceholder />
-                )}
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* --- LAYOUT: CONTENT LEFT --- */}
-          {slide.layout === 'CONTENT_LEFT' && (
-            <div className="flex flex-col md:flex-row h-full">
-               <div className="w-full md:w-1/2 h-full bg-indigo-50 relative overflow-hidden order-2 md:order-1 border-r border-white/50">
-                {slide.imageUrl ? (
-                  <img src={slide.imageUrl} alt="Visual" className="w-full h-full object-cover animate-fade-in" />
-                ) : (
-                  <ImagePlaceholder />
-                )}
-              </div>
-              <div className="w-full md:w-1/2 p-12 flex flex-col justify-center bg-white z-10 order-1 md:order-2">
-                <input
-                  className="text-4xl md:text-5xl font-bold text-slate-900 bg-transparent border-none focus:ring-0 placeholder-slate-300 mb-8 w-full outline-none text-right"
-                  value={slide.title}
-                  onChange={handleTitleChange}
-                  placeholder={texts.titlePlaceholder}
-                />
-                <ul className="space-y-4">
-                  {slide.content.map((point, idx) => (
-                    <li key={idx} className="flex items-start flex-row-reverse text-right">
-                      <span className="ml-3 text-indigo-600 text-2xl leading-none">•</span>
-                      <input
-                        className="flex-1 text-lg md:text-xl text-slate-700 bg-transparent border-b border-transparent focus:border-indigo-200 focus:ring-0 w-full outline-none pb-1 text-right"
-                        value={point}
-                        onChange={(e) => handleContentChange(idx, e.target.value)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* --- LAYOUT: FULL IMAGE --- */}
-          {slide.layout === 'FULL_IMAGE' && (
-             <div className="w-full h-full relative flex flex-col justify-end p-12">
-               {/* Background Layer */}
-                <div className="absolute inset-0 z-0 bg-slate-900">
-                  {slide.imageUrl ? (
-                    <>
-                      <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover opacity-80" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
-                    </>
-                  ) : (
-                    <ImagePlaceholder dark />
-                  )}
-                </div>
-
-                {/* Content Layer */}
-                <div className="relative z-10 w-full max-w-4xl">
-                   <input
-                    className="text-5xl md:text-6xl font-bold text-white bg-transparent border-none focus:ring-0 placeholder-white/50 mb-6 w-full outline-none drop-shadow-md"
+            {/* --- LAYOUT: CONTENT RIGHT (Standard) --- */}
+            {slide.layout === 'CONTENT_RIGHT' && (
+              <div className="flex flex-row h-full">
+                <div className="w-1/2 p-12 flex flex-col justify-center bg-white z-10">
+                  <input
+                    className="text-5xl font-bold text-slate-900 bg-transparent border-none focus:ring-0 placeholder-slate-300 mb-8 w-full outline-none"
                     value={slide.title}
                     onChange={handleTitleChange}
                     placeholder={texts.titlePlaceholder}
                   />
-                  <div className="pl-6 border-l-4 border-indigo-500">
+                  <ul className="space-y-4">
                     {slide.content.map((point, idx) => (
-                      <input
-                        key={idx}
-                        className="block w-full text-xl md:text-2xl text-slate-200 bg-transparent border-none focus:ring-0 outline-none mb-2 drop-shadow-sm font-light"
-                        value={point}
-                        onChange={(e) => handleContentChange(idx, e.target.value)}
-                      />
+                      <li key={idx} className="flex items-start">
+                        <span className="mr-3 text-indigo-600 text-2xl leading-none">•</span>
+                        <input
+                          className="flex-1 text-xl text-slate-700 bg-transparent border-b border-transparent focus:border-indigo-200 focus:ring-0 w-full outline-none pb-1"
+                          value={point}
+                          onChange={(e) => handleContentChange(idx, e.target.value)}
+                        />
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
-             </div>
-          )}
-          
-          {/* --- LAYOUT: IMAGE ONLY --- */}
-          {slide.layout === 'IMAGE_ONLY' && (
-             <div className="w-full h-full relative bg-slate-900">
-                {slide.imageUrl ? (
-                  <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover" />
-                ) : (
-                  <ImagePlaceholder dark />
-                )}
-                {/* Note: Text is deliberately hidden in this layout for pure visual impact/text-in-image. */}
-             </div>
-          )}
+                <div className="w-1/2 h-full bg-indigo-50 relative overflow-hidden">
+                  {slide.imageUrl ? (
+                    <img src={slide.imageUrl} alt="Visual" className="w-full h-full object-cover animate-fade-in" />
+                  ) : (
+                    <ImagePlaceholder />
+                  )}
+                </div>
+              </div>
+            )}
 
+            {/* --- LAYOUT: CONTENT LEFT --- */}
+            {slide.layout === 'CONTENT_LEFT' && (
+              <div className="flex flex-row h-full">
+                <div className="w-1/2 h-full bg-indigo-50 relative overflow-hidden border-r border-white/50">
+                  {slide.imageUrl ? (
+                    <img src={slide.imageUrl} alt="Visual" className="w-full h-full object-cover animate-fade-in" />
+                  ) : (
+                    <ImagePlaceholder />
+                  )}
+                </div>
+                <div className="w-1/2 p-12 flex flex-col justify-center bg-white z-10">
+                  <input
+                    className="text-5xl font-bold text-slate-900 bg-transparent border-none focus:ring-0 placeholder-slate-300 mb-8 w-full outline-none text-right"
+                    value={slide.title}
+                    onChange={handleTitleChange}
+                    placeholder={texts.titlePlaceholder}
+                  />
+                  <ul className="space-y-4">
+                    {slide.content.map((point, idx) => (
+                      <li key={idx} className="flex items-start flex-row-reverse text-right">
+                        <span className="ml-3 text-indigo-600 text-2xl leading-none">•</span>
+                        <input
+                          className="flex-1 text-xl text-slate-700 bg-transparent border-b border-transparent focus:border-indigo-200 focus:ring-0 w-full outline-none pb-1 text-right"
+                          value={point}
+                          onChange={(e) => handleContentChange(idx, e.target.value)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* --- LAYOUT: FULL IMAGE --- */}
+            {slide.layout === 'FULL_IMAGE' && (
+              <div className="w-full h-full relative flex flex-col justify-end p-12">
+                {/* Background Layer */}
+                  <div className="absolute inset-0 z-0 bg-slate-900">
+                    {slide.imageUrl ? (
+                      <>
+                        <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover opacity-80" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+                      </>
+                    ) : (
+                      <ImagePlaceholder dark />
+                    )}
+                  </div>
+
+                  {/* Content Layer */}
+                  <div className="relative z-10 w-full max-w-4xl">
+                    <input
+                      className="text-6xl font-bold text-white bg-transparent border-none focus:ring-0 placeholder-white/50 mb-6 w-full outline-none drop-shadow-md"
+                      value={slide.title}
+                      onChange={handleTitleChange}
+                      placeholder={texts.titlePlaceholder}
+                    />
+                    <div className="pl-6 border-l-4 border-indigo-500">
+                      {slide.content.map((point, idx) => (
+                        <input
+                          key={idx}
+                          className="block w-full text-2xl text-slate-200 bg-transparent border-none focus:ring-0 outline-none mb-2 drop-shadow-sm font-light"
+                          value={point}
+                          onChange={(e) => handleContentChange(idx, e.target.value)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+              </div>
+            )}
+            
+            {/* --- LAYOUT: IMAGE ONLY --- */}
+            {slide.layout === 'IMAGE_ONLY' && (
+              <div className="w-full h-full relative bg-slate-900">
+                  {slide.imageUrl ? (
+                    <img src={slide.imageUrl} alt="Background" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImagePlaceholder dark />
+                  )}
+                  {/* Note: Text is deliberately hidden in this layout for pure visual impact/text-in-image. */}
+              </div>
+            )}
+
+          </div>
         </div>
-
-        {/* Space for overscroll so user can always center the slide */}
-        <div className="h-8 w-full shrink-0"></div>
       </div>
       
       {/* Prompt Editor Section - Fixed at Bottom */}

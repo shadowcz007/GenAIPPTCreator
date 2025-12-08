@@ -40,7 +40,10 @@ const TRANSLATIONS = {
       promptLabel: "AI 绘图提示词",
       promptPlaceholder: "描述您想生成的图像...",
       genButton: "生成图片",
-      tip: "提示：纯图模式采用扁平信息图风格。建议在提示词中描述图表结构、流程或对比关系。"
+      tip: "提示：纯图模式采用扁平信息图风格。建议在提示词中描述图表结构、流程或对比关系。",
+      zoomIn: "放大",
+      zoomOut: "缩小",
+      zoomReset: "自适应"
     }
   },
   en: {
@@ -75,7 +78,10 @@ const TRANSLATIONS = {
       promptLabel: "AI Image Prompt",
       promptPlaceholder: "Describe the image you want to generate...",
       genButton: "Generate Image",
-      tip: "Tip: Image Only mode uses a Flat Infographic style. Describe chart structures or flows in the prompt."
+      tip: "Tip: Image Only mode uses a Flat Infographic style. Describe chart structures or flows in the prompt.",
+      zoomIn: "Zoom In",
+      zoomOut: "Zoom Out",
+      zoomReset: "Fit Screen"
     }
   }
 };
