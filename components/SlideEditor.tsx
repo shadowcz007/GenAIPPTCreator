@@ -305,8 +305,13 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
         </div>
 
-        {/* Prompt Editor Section */}
-        <div className="w-full max-w-5xl mt-8 bg-white rounded-lg shadow-sm border border-slate-200 p-4 shrink-0">
+        {/* Space for overscroll so user can always center the slide */}
+        <div className="h-8 w-full shrink-0"></div>
+      </div>
+      
+      {/* Prompt Editor Section - Fixed at Bottom */}
+      <div className="w-full bg-white border-t border-slate-200 p-4 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
+        <div className="max-w-5xl mx-auto">
           <div className="flex justify-between items-center mb-2">
              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                {texts.promptLabel || 'AI Image Prompt'}
@@ -322,7 +327,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             <textarea 
               value={slide.imagePrompt} 
               onChange={handlePromptChange}
-              className="w-full h-24 p-3 text-sm text-slate-700 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none bg-slate-50 font-mono leading-relaxed"
+              className="w-full h-24 min-h-[5rem] max-h-[50vh] p-3 pr-28 text-sm text-slate-700 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-y bg-slate-50 font-mono leading-relaxed transition-all"
               placeholder={texts.promptPlaceholder || "Describe the image you want to generate..."}
             />
             <button 
@@ -340,9 +345,6 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             </p>
           )}
         </div>
-        
-        {/* Bottom Spacer */}
-        <div className="h-12 shrink-0"></div>
       </div>
     </div>
   );
