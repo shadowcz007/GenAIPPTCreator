@@ -1,0 +1,5 @@
+{
+  "name": "GenAI PPT Creator",
+  "description": "智能 AI PPT 生成器。输入大纲，自动生成包含专业排版和 AI 绘图（Gemini 3 Pro Image）的演示文稿。",
+  "requestFramePermissions": []
+}
