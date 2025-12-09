@@ -5,20 +5,19 @@ import { SlideData, Language } from "../types";
 // Configure custom endpoint for Shengsuan Cloud
 setDefaultBaseUrls({ geminiUrl: 'https://router.shengsuanyun.com/api' });
 
-const STORAGE_KEY = 'GENAI_API_KEY';
+const API_KEY_STORAGE = 'GEMINI_API_KEY';
 
 export const getApiKey = (): string => {
-  return (localStorage.getItem(STORAGE_KEY) || '').trim();
+  return localStorage.getItem(API_KEY_STORAGE) || '';
 };
 
 export const setApiKey = (key: string) => {
-  localStorage.setItem(STORAGE_KEY, key.trim());
+  localStorage.setItem(API_KEY_STORAGE, key);
 };
 
 // Helper to check for API Key
 export const checkAndRequestApiKey = async (): Promise<boolean> => {
-  const key = getApiKey();
-  return !!key && key.length > 0;
+  return !!getApiKey();
 };
 
 export const generatePresentationStructure = async (topic: string, language: Language): Promise<SlideData[]> => {

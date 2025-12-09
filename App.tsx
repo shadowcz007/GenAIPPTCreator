@@ -101,16 +101,16 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<GenerationStatus>(GenerationStatus.IDLE);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState<string>('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
 
   const t = TRANSLATIONS[language];
   const currentSlideIndex = slides.findIndex(s => s.id === currentSlideId);
   const currentSlide = slides[currentSlideIndex];
   
   // Ref for debouncing auto-save
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Persist language on change
   useEffect(() => {
@@ -118,10 +118,10 @@ const App: React.FC = () => {
     document.title = language === 'zh' ? 'AI PPT 生成器' : 'GenAI PPT Creator';
   }, [language]);
 
-  // Check for API key on mount and when settings close
+  // Check for API key on mount
   useEffect(() => {
     checkAndRequestApiKey().then(setHasApiKey);
-  }, [isSettingsOpen]);
+  }, [showSettings]); // Re-check when settings close
 
   // Load history on mount
   useEffect(() => {
@@ -156,7 +156,7 @@ const App: React.FC = () => {
     // Check API Key
     const hasKey = await checkAndRequestApiKey();
     if (!hasKey) {
-      setIsSettingsOpen(true);
+      setShowSettings(true);
       setErrorMsg(t.errorApiKey);
       return;
     }
@@ -179,7 +179,7 @@ const App: React.FC = () => {
       setStatus(GenerationStatus.COMPLETE);
     } catch (err: any) {
       if (err.message === 'API_KEY_MISSING') {
-        setIsSettingsOpen(true);
+        setShowSettings(true);
         setErrorMsg(t.errorApiKey);
       } else {
         setErrorMsg(err.message || "Failed to generate structure");
@@ -263,7 +263,7 @@ const App: React.FC = () => {
     try {
       const hasKey = await checkAndRequestApiKey();
       if (!hasKey) {
-        setIsSettingsOpen(true);
+        setShowSettings(true);
         throw new Error(t.errorApiKey);
       }
 
@@ -290,7 +290,7 @@ const App: React.FC = () => {
 
     const hasKey = await checkAndRequestApiKey();
     if (!hasKey) {
-      setIsSettingsOpen(true);
+      setShowSettings(true);
       alert(t.errorApiKey);
       return;
     }
@@ -363,7 +363,7 @@ const App: React.FC = () => {
         </button>
       </div>
       <button 
-        onClick={() => setIsSettingsOpen(true)}
+        onClick={() => setShowSettings(true)}
         className="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors"
         title={t.settings}
       >
@@ -380,9 +380,9 @@ const App: React.FC = () => {
   return (
     <>
       <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-        language={language}
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+        language={language} 
       />
 
       {/* Render Initial Input Screen */}
