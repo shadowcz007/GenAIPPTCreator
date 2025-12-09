@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SlideData, GenerationStatus, Language, HistoryItem } from './types';
 import { generatePresentationStructure, generateSlideImage, checkAndRequestApiKey } from './services/geminiService';
 import { getHistory, saveHistoryItem, deleteHistoryItem } from './services/historyService';
+import { exportToPptx } from './services/pptxService';
 import { SlideThumbnail } from './components/SlideThumbnail';
 import { SlideEditor } from './components/SlideEditor';
 import { SettingsModal } from './components/SettingsModal';
@@ -18,7 +19,9 @@ const TRANSLATIONS = {
     imagesReady: "张图片已就绪",
     genAllImages: "批量生成图片",
     generatingAll: "正在生成...",
-    exportPdf: "导出 PDF",
+    export: "导出",
+    exportPdf: "导出 PDF (打印)",
+    exportPptx: "导出 PPTX 文件",
     slidesTitle: "幻灯片",
     newPresentation: "新建文稿",
     processingImages: "正在处理图像 (Gemini 3 Pro)...",
@@ -56,7 +59,9 @@ const TRANSLATIONS = {
     imagesReady: "Images Ready",
     genAllImages: "Generate All Images",
     generatingAll: "Generating...",
-    exportPdf: "Export PDF",
+    export: "Export",
+    exportPdf: "Export PDF (Print)",
+    exportPptx: "Export PPTX File",
     slidesTitle: "Slides",
     newPresentation: "New Presentation",
     processingImages: "Processing images with Gemini 3 Pro...",
@@ -104,6 +109,8 @@ const App: React.FC = () => {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const t = TRANSLATIONS[language];
   const currentSlideIndex = slides.findIndex(s => s.id === currentSlideId);
@@ -126,6 +133,17 @@ const App: React.FC = () => {
   // Load history on mount
   useEffect(() => {
     setHistoryList(getHistory());
+  }, []);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Auto-save logic
@@ -315,6 +333,16 @@ const App: React.FC = () => {
     setStatus(GenerationStatus.COMPLETE);
   };
 
+  const handleExportPptx = async () => {
+    setShowExportMenu(false);
+    try {
+      await exportToPptx(topic, slides);
+    } catch (error) {
+      console.error("PPTX Export failed:", error);
+      alert("Failed to export PPTX");
+    }
+  };
+
   const loadHistoryItem = (item: HistoryItem) => {
     setPresentationId(item.id);
     setTopic(item.topic);
@@ -502,7 +530,7 @@ const App: React.FC = () => {
         <div className="h-screen flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
           
           {/* Header */}
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm">
+          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-40 relative shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center font-bold text-white">Ai</div>
               <h1 className="font-semibold text-lg truncate max-w-md text-slate-800" title={topic}>{topic}</h1>
@@ -521,12 +549,40 @@ const App: React.FC = () => {
               >
                 {status === GenerationStatus.GENERATING_IMAGES ? t.generatingAll : t.genAllImages}
               </button>
-              <button 
-                className="px-4 py-2 bg-slate-900 text-white rounded-md text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm"
-                onClick={() => window.print()}
-              >
-                {t.exportPdf}
-              </button>
+              
+              <div className="relative" ref={exportMenuRef}>
+                <button 
+                  className="px-4 py-2 bg-slate-900 text-white rounded-md text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                >
+                  {t.export}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                {showExportMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border border-slate-200 z-50">
+                    <button
+                      onClick={() => {
+                        window.print();
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                      {t.exportPdf}
+                    </button>
+                    <button
+                      onClick={handleExportPptx}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      {t.exportPptx}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
